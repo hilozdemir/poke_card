@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#15110f" />
+    <title>Pokédex Kartları</title>
+    <link rel="preconnect" href="https://pokeapi.co" />
+    <link rel="preconnect" href="https://raw.githubusercontent.com" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section class="opening-screen" id="openingScreen" aria-labelledby="openingTitle">
+      <h1 class="visually-hidden" id="openingTitle">Pokédex açılış ekranı</h1>
+      <span class="opening-light" aria-hidden="true"></span>
+      <button class="opening-pokeball" id="startButton" type="button" aria-label="Poké Topunu aç ve Pokémon kartlarını göster">
+        <span class="ball-top"></span><span class="ball-bottom"></span><span class="ball-line"></span><span class="ball-center"><i></i></span>
+      </button>
+    </section>
+
+    <main class="app-shell app-hidden" id="appContent">
+      <nav class="topbar" aria-label="Ana menü">
+        <a class="brand" href="#top" aria-label="Pokédex ana sayfa">
+          <span class="brand-mark"><i></i></span>
+          <span>Poké<span>Cards</span></span>
+        </a>
+        <span class="live-status"><b></b> <span id="apiStatusText">PokeAPI canlı</span></span>
+        <label class="language-picker" for="languageSelect">
+          <span aria-hidden="true">◎</span>
+          <select id="languageSelect" aria-label="Dil seçimi">
+            <option value="tr">Türkçe</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+        <button class="outline-button" id="refreshButton" type="button">
+          <span aria-hidden="true">↻</span> <span id="refreshText">Yenile</span>
+        </button>
+      </nav>
+
+      <section class="collection" id="collection" aria-labelledby="collectionTitle">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow" id="archiveLabel">CANLI ARŞİV</p>
+            <h2 id="collectionTitle"><span class="collection-title title-cards" id="collectionCardsText">PokeKart</span> <span id="pokemonCount">—</span></h2>
+          </div>
+          <label class="search-box">
+            <span aria-hidden="true">⌕</span>
+            <input id="searchInput" type="search" placeholder="Pokémon ara..." autocomplete="off" />
+          </label>
+        </div>
+        <div class="collection-layout">
+          <details class="type-sidebar" aria-label="Pokémon türleri">
+            <summary class="sidebar-title"><span id="filterTitle">Tür Filtreleri</span><span class="sidebar-chevron" aria-hidden="true">⌄</span></summary>
+            <div class="filters" id="filters" aria-label="Tür filtresi">
+              <button class="filter active" type="button" data-type="all"><span>✦</span> <span class="filter-label">Tümü</span></button>
+              <button class="filter" type="button" data-type="fire"><span>🔥</span> Ateş</button>
+              <button class="filter" type="button" data-type="water"><span>💧</span> Su</button>
+              <button class="filter" type="button" data-type="grass"><span>🌿</span> Çimen</button>
+              <button class="filter" type="button" data-type="electric"><span>⚡</span> Elektrik</button>
+              <button class="filter" type="button" data-type="ice"><span>❄️</span> Buz</button>
+              <button class="filter" type="button" data-type="fighting"><span>🥊</span> Dövüş</button>
+              <button class="filter" type="button" data-type="poison"><span>☠️</span> Zehir</button>
+              <button class="filter" type="button" data-type="ground"><span>🌍</span> Yer</button>
+              <button class="filter" type="button" data-type="flying"><span>🪽</span> Uçan</button>
+              <button class="filter" type="button" data-type="psychic"><span>🔮</span> Psişik</button>
+              <button class="filter" type="button" data-type="bug"><span>🐛</span> Böcek</button>
+              <button class="filter" type="button" data-type="rock"><span>🪨</span> Kaya</button>
+              <button class="filter" type="button" data-type="ghost"><span>👻</span> Hayalet</button>
+              <button class="filter" type="button" data-type="dragon"><span>🐉</span> Ejderha</button>
+              <button class="filter" type="button" data-type="dark"><span>🌑</span> Karanlık</button>
+              <button class="filter" type="button" data-type="steel"><span>⚙️</span> Çelik</button>
+              <button class="filter" type="button" data-type="fairy"><span>🧚</span> Peri</button>
+              <button class="filter" type="button" data-type="normal"><span>⚪</span> Normal</button>
+            </div>
+          </details>
+          <div class="cards-area">
+            <div class="pokemon-grid" id="pokemonGrid" aria-live="polite"></div>
+            <div class="empty-state hidden" id="emptyState">
+              <span>⌕</span><h3>Aramana uygun kart yok</h3><p>Farklı bir Pokémon adı ya da tür deneyebilirsin.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <dialog class="detail-dialog" id="detailDialog">
+      <button class="close-button" id="closeDialog" type="button" aria-label="Detayları kapat">×</button>
+      <div id="detailContent"></div>
+    </dialog>
+    <template id="loadingTemplate">
+      <article class="pokemon-card skeleton-card"><div></div><div></div><div></div></article>
+    </template>
+    <script src="app.js"></script>
+  </body>
+</html>
