@@ -24,8 +24,8 @@ const typeLabels = {
   en: { fire:'Fire', water:'Water', grass:'Grass', electric:'Electric', poison:'Poison', flying:'Flying', bug:'Bug', normal:'Normal', ground:'Ground', fairy:'Fairy', fighting:'Fighting', psychic:'Psychic', rock:'Rock', ice:'Ice', ghost:'Ghost', dragon:'Dragon', dark:'Dark', steel:'Steel' }
 };
 const uiText = {
-  tr: { card:'kart', loading:'yükleniyor', height:'Boy', weight:'Ağırlık', experience:'Deneyim', listen:'Sesini Dinle', playing:'Çalıyor…', descriptionLoading:'Pokédex açıklaması yükleniyor…', details:'detaylarını aç', archive:'CANLI ARŞİV', collection:'PokeKart', search:'Pokémon ara...', filters:'Tür Filtreleri', refresh:'Yenile', all:'Tümü', apiLive:'PokeAPI canlı' },
-  en: { card:'cards', loading:'loading', height:'Height', weight:'Weight', experience:'Experience', listen:'Listen to Cry', playing:'Playing…', descriptionLoading:'Loading Pokédex description…', details:'open details', archive:'LIVE ARCHIVE', collection:'Pokecards', search:'Search Pokémon...', filters:'TYPE FILTERS', refresh:'Refresh', all:'All', apiLive:'PokeAPI live' }
+  tr: { card:'kart', loading:'yükleniyor', height:'Boy', weight:'Ağırlık', experience:'Deneyim', listen:'Sesini Dinle', playing:'Çalıyor…', descriptionLoading:'Pokédex açıklaması yükleniyor…', details:'detaylarını aç', archive:'CANLI ARŞİV', collection:'PokéKart', search:'Pokémon ara...', filters:'TÜRLER', refresh:'Yenile', all:'Tümü', apiLive:'PokeAPI canlı' },
+  en: { card:'cards', loading:'loading', height:'Height', weight:'Weight', experience:'Experience', listen:'Listen to Cry', playing:'Playing…', descriptionLoading:'Loading Pokédex description…', details:'open details', archive:'LIVE ARCHIVE', collection:'PokéCards', search:'Search Pokémon...', filters:'TYPE FILTERS', refresh:'Refresh', all:'All', apiLive:'PokeAPI live' }
 };
 const typeName = type => typeLabels[language][type] || type;
 const typeDisplayName = type => typeName(type).toLocaleUpperCase(language === 'tr' ? 'tr-TR' : 'en-US');
@@ -189,10 +189,13 @@ function applyLanguage() {
   search.placeholder = text.search;
   filters.querySelectorAll('.filter').forEach(button => {
     const label = button.dataset.type === 'all' ? text.all : typeName(button.dataset.type);
+    const nestedLabel = button.querySelector('.filter-label');
+    if (nestedLabel) {
+      nestedLabel.textContent = label;
+      return;
+    }
     const textNode = [...button.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
     if (textNode) textNode.textContent = ` ${label}`;
-    const nestedLabel = button.querySelector('.filter-label');
-    if (nestedLabel) nestedLabel.textContent = label;
   });
 }
 applyLanguage();
