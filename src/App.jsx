@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const API_ROOT = 'https://pokeapi.co/api/v2';
+const PAGE_SIZE = 24;
 const typeLabels = {
   tr: { fire: 'Ateş', water: 'Su', grass: 'Çimen', electric: 'Elektrik', poison: 'Zehir', flying: 'Uçan', bug: 'Böcek', normal: 'Normal', ground: 'Yer', fairy: 'Peri', fighting: 'Dövüş', psychic: 'Psişik', rock: 'Kaya', ice: 'Buz', ghost: 'Hayalet', dragon: 'Ejderha', dark: 'Karanlık', steel: 'Çelik' },
   en: { fire: 'Fire', water: 'Water', grass: 'Grass', electric: 'Electric', poison: 'Poison', flying: 'Flying', bug: 'Bug', normal: 'Normal', ground: 'Ground', fairy: 'Fairy', fighting: 'Fighting', psychic: 'Psychic', rock: 'Rock', ice: 'Ice', ghost: 'Ghost', dragon: 'Dragon', dark: 'Dark', steel: 'Steel' },
 };
 const uiText = {
-  tr: { card: 'kart', loading: 'yükleniyor', height: 'Boy', weight: 'Ağırlık', experience: 'Deneyim', listen: 'Sesini Dinle', playing: 'Çalıyor…', descriptionLoading: 'Pokédex açıklaması yükleniyor…', details: 'detaylarını aç', archive: 'CANLI ARŞİV', collection: 'PokéKart', search: 'Pokémon ara...', filters: 'TÜRLER', refresh: 'Yenile', all: 'Tümü', apiLive: 'PokeAPI canlı', emptyTitle: 'Aramana uygun kart yok', emptyText: 'Farklı bir Pokémon adı ya da tür deneyebilirsin.', errorTitle: 'PokéAPI’ye şu an ulaşılamıyor.', errorText: 'Bağlantını kontrol edip tekrar deneyebilirsin.', retry: 'Tekrar dene' },
-  en: { card: 'cards', loading: 'loading', height: 'Height', weight: 'Weight', experience: 'Experience', listen: 'Listen to Cry', playing: 'Playing…', descriptionLoading: 'Loading Pokédex description…', details: 'open details', archive: 'LIVE ARCHIVE', collection: 'PokéCards', search: 'Search Pokémon...', filters: 'TYPE FILTERS', refresh: 'Refresh', all: 'All', apiLive: 'PokeAPI live', emptyTitle: 'No cards match your search', emptyText: 'Try a different Pokémon name or type.', errorTitle: 'PokéAPI is unavailable right now.', errorText: 'Check your connection and try again.', retry: 'Try again' },
+  tr: { card: 'kart', loading: 'yükleniyor', height: 'Boy', weight: 'Ağırlık', experience: 'Deneyim', listen: 'Sesini Dinle', playing: 'Çalıyor…', descriptionLoading: 'Pokédex açıklaması yükleniyor…', details: 'detaylarını aç', archive: 'CANLI ARŞİV', collection: 'PokéKart', search: 'Pokémon ara...', filters: 'TÜRLER', refresh: 'Yenile', all: 'Tümü', previous: 'Önceki', next: 'Sonraki', page: 'Sayfa', apiLive: 'PokeAPI canlı', emptyTitle: 'Aramana uygun kart yok', emptyText: 'Farklı bir Pokémon adı ya da tür deneyebilirsin.', errorTitle: 'PokéAPI’ye şu an ulaşılamıyor.', errorText: 'Bağlantını kontrol edip tekrar deneyebilirsin.', retry: 'Tekrar dene' },
+  en: { card: 'cards', loading: 'loading', height: 'Height', weight: 'Weight', experience: 'Experience', listen: 'Listen to Cry', playing: 'Playing…', descriptionLoading: 'Loading Pokédex description…', details: 'open details', archive: 'LIVE ARCHIVE', collection: 'PokéCards', search: 'Search Pokémon...', filters: 'TYPE FILTERS', refresh: 'Refresh', all: 'All', previous: 'Previous', next: 'Next', page: 'Page', apiLive: 'PokeAPI live', emptyTitle: 'No cards match your search', emptyText: 'Try a different Pokémon name or type.', errorTitle: 'PokéAPI is unavailable right now.', errorText: 'Check your connection and try again.', retry: 'Try again' },
 };
 const filterTypes = [['all', '✦'], ['fire', '🔥'], ['water', '💧'], ['grass', '🌿'], ['electric', '⚡'], ['ice', '❄️'], ['fighting', '🥊'], ['poison', '☠️'], ['ground', '🌍'], ['flying', '🪽'], ['psychic', '🔮'], ['bug', '🐛'], ['rock', '🪨'], ['ghost', '👻'], ['dragon', '🐉'], ['dark', '🌑'], ['steel', '⚙️'], ['fairy', '🧚'], ['normal', '⚪']];
 const formatId = (id) => `#${String(id).padStart(4, '0')}`;
@@ -122,8 +123,11 @@ export default function App() {
   const [language, setLanguage] = useState(() => localStorage.getItem('pokecards-language') || 'tr');
   const [query, setQuery] = useState('');
   const [activeType, setActiveType] = useState('all');
+  const [page, setPage] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [detailItem, setDetailItem] = useState(null);
   const dialogRef = useRef(null); const requestRef = useRef(0);
+  const allPokemonRef = useRef(null); const typePokemonRef = useRef({});
   const text = uiText[language];
 
   useEffect(() => { document.documentElement.lang = language; localStorage.setItem('pokecards-language', language); }, [language]);
@@ -132,37 +136,64 @@ export default function App() {
     const requestId = ++requestRef.current;
     setPokemon([]); setTotalPokemon(0); setIsLoading(true); setLoadError(false);
     try {
-      const response = await fetch(`${API_ROOT}/pokemon?limit=2000&offset=0`);
-      if (!response.ok) throw new Error('Pokemon list request failed');
-      const data = await response.json();
-      const resultsList = data.results;
-      setTotalPokemon(resultsList.length);
-      for (let start = 0; start < resultsList.length; start += 48) {
-        const results = await Promise.allSettled(resultsList.slice(start, start + 48).map(async ({ url }) => {
-          const itemResponse = await fetch(url); if (!itemResponse.ok) throw new Error('Pokemon request failed'); return itemResponse.json();
-        }));
-        if (requestId !== requestRef.current) return;
-        const batch = results.filter((result) => result.status === 'fulfilled').map((result) => result.value);
-        setPokemon((current) => [...current, ...batch].sort((first, second) => first.id - second.id));
+      const normalizedQuery = query.trim().toLocaleLowerCase('tr-TR');
+      let resultsList;
+
+      if (activeType !== 'all' || normalizedQuery) {
+        if (activeType !== 'all') {
+          if (!typePokemonRef.current[activeType]) {
+            const typeResponse = await fetch(`${API_ROOT}/type/${activeType}`);
+            if (!typeResponse.ok) throw new Error('Pokemon type request failed');
+            const typeData = await typeResponse.json();
+            typePokemonRef.current[activeType] = typeData.pokemon.map(({ pokemon: entry }) => entry);
+          }
+          resultsList = typePokemonRef.current[activeType];
+        } else {
+          if (!allPokemonRef.current) {
+            const listResponse = await fetch(`${API_ROOT}/pokemon?limit=2000&offset=0`);
+            if (!listResponse.ok) throw new Error('Pokemon list request failed');
+            const listData = await listResponse.json(); allPokemonRef.current = listData.results;
+          }
+          resultsList = allPokemonRef.current;
+        }
+        if (normalizedQuery) resultsList = resultsList.filter(({ name }) => name.toLocaleLowerCase('tr-TR').includes(normalizedQuery));
+        setTotalPokemon(resultsList.length);
+        resultsList = resultsList.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+      } else {
+        const response = await fetch(`${API_ROOT}/pokemon?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`);
+        if (!response.ok) throw new Error('Pokemon list request failed');
+        const data = await response.json(); resultsList = data.results;
+        setTotalPokemon(data.count);
       }
+
+      const results = await Promise.allSettled(resultsList.map(async ({ url }) => {
+        const itemResponse = await fetch(url); if (!itemResponse.ok) throw new Error('Pokemon request failed'); return itemResponse.json();
+      }));
+      if (requestId !== requestRef.current) return;
+      const batch = results.filter((result) => result.status === 'fulfilled').map((result) => result.value);
+      setPokemon(batch.sort((first, second) => first.id - second.id));
       if (requestId === requestRef.current) setIsLoading(false);
     } catch { if (requestId === requestRef.current) { setIsLoading(false); setLoadError(true); } }
   };
-  useEffect(() => { if (hasStarted) loadPokemon(); }, [hasStarted]);
+  useEffect(() => { if (hasStarted) loadPokemon(); }, [hasStarted, page, activeType, query, refreshKey]);
   const displayed = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('tr-TR');
     return pokemon.filter((item) => item.name.toLocaleLowerCase('tr-TR').includes(normalized) && (activeType === 'all' || item.types.some(({ type }) => type.name === activeType)));
   }, [pokemon, query, activeType]);
   const closeDetail = () => { if (dialogRef.current?.open) dialogRef.current.close(); setDetailItem(null); };
+  const refreshPokemon = () => { allPokemonRef.current = null; typePokemonRef.current = {}; setRefreshKey((current) => current + 1); };
   const start = () => { setIsOpening(true); window.setTimeout(() => setHasStarted(true), 1080); };
+  const pageCount = Math.ceil(totalPokemon / PAGE_SIZE);
+  const rangeStart = totalPokemon ? page * PAGE_SIZE + 1 : 0;
+  const rangeEnd = Math.min((page + 1) * PAGE_SIZE, totalPokemon);
 
   if (!hasStarted) return <section className={`opening-screen${isOpening ? ' is-opening' : ''}`} aria-labelledby="openingTitle"><h1 className="visually-hidden" id="openingTitle">Pokédex açılış ekranı</h1><span className="opening-light" aria-hidden="true" /><button className="opening-pokeball" type="button" onClick={start} aria-label="Poké Topunu aç ve Pokémon kartlarını göster"><span className="ball-top" /><span className="ball-bottom" /><span className="ball-line" /><span className="ball-center"><i /></span></button></section>;
 
   return <main className="app-shell" id="top">
-    <nav className="topbar" aria-label="Ana menü"><a className="brand" href="#top" aria-label="Pokédex ana sayfa"><span className="brand-mark"><i /></span><span>Poké<span>Cards</span></span></a><span className="live-status"><b /> {text.apiLive}</span><label className="language-picker"><span aria-hidden="true">◎</span><select value={language} onChange={(event) => setLanguage(event.target.value)} aria-label="Dil seçimi"><option value="tr">Türkçe</option><option value="en">English</option></select></label><button className="outline-button" type="button" onClick={loadPokemon}><span aria-hidden="true">↻</span> {text.refresh}</button></nav>
-    <section className="collection" aria-labelledby="collectionTitle"><div className="section-heading"><div><p className="eyebrow">{text.archive}</p><h2 id="collectionTitle"><span className="collection-title">{text.collection}</span> <span id="pokemonCount">{isLoading ? `${displayed.length} / ${totalPokemon} ${text.card} ${text.loading}` : `${displayed.length} ${text.card}`}</span></h2></div><label className="search-box"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={text.search} autoComplete="off" /></label></div>
-      <div className="collection-layout"><details className="type-sidebar" open aria-label="Pokémon türleri"><summary className="sidebar-title"><span>{text.filters}</span><span className="sidebar-chevron" aria-hidden="true">⌄</span></summary><div className="filters" aria-label="Tür filtresi">{filterTypes.map(([type, icon]) => <button className={`filter${activeType === type ? ' active' : ''}`} type="button" key={type} onClick={() => setActiveType(type)}><span>{icon}</span> {type === 'all' ? text.all : typeLabels[language][type]}</button>)}</div></details>
-        <div className="cards-area"><div className="pokemon-grid" aria-live="polite">{isLoading && pokemon.length === 0 ? <SkeletonCards /> : loadError ? <div className="error-card"><strong>{text.errorTitle}</strong><br /><span>{text.errorText}</span><br /><button type="button" onClick={loadPokemon}>{text.retry}</button></div> : displayed.map((item) => <PokemonCard item={item} language={language} text={text} onDetails={setDetailItem} key={item.id} />)}</div>{!isLoading && !loadError && displayed.length === 0 && <div className="empty-state"><span>⌕</span><h3>{text.emptyTitle}</h3><p>{text.emptyText}</p></div>}</div>
+    <nav className="topbar" aria-label="Ana menü"><a className="brand" href="#top" aria-label="Pokédex ana sayfa"><span className="brand-mark"><i /></span><span>Poké<span>Cards</span></span></a><span className="live-status"><b /> {text.apiLive}</span><label className="language-picker"><span aria-hidden="true">◎</span><select value={language} onChange={(event) => setLanguage(event.target.value)} aria-label="Dil seçimi"><option value="tr">Türkçe</option><option value="en">English</option></select></label><button className="outline-button" type="button" onClick={refreshPokemon}><span aria-hidden="true">↻</span> {text.refresh}</button></nav>
+    <section className="collection" aria-labelledby="collectionTitle"><div className="section-heading"><div><p className="eyebrow">{text.archive}</p><h2 id="collectionTitle"><span className="collection-title">{text.collection}</span> <span id="pokemonCount">{isLoading ? `${rangeStart}-${rangeEnd} / ${totalPokemon} ${text.card} ${text.loading}` : `${rangeStart}-${rangeEnd} / ${totalPokemon} ${text.card}`}</span></h2></div><label className="search-box"><span aria-hidden="true">⌕</span><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} placeholder={text.search} autoComplete="off" /></label></div>
+      <div className="collection-layout"><details className="type-sidebar" open aria-label="Pokémon türleri"><summary className="sidebar-title"><span>{text.filters}</span><span className="sidebar-chevron" aria-hidden="true">⌄</span></summary><div className="filters" aria-label="Tür filtresi">{filterTypes.map(([type, icon]) => <button className={`filter${activeType === type ? ' active' : ''}`} type="button" key={type} onClick={() => { setActiveType(type); setPage(0); }}><span>{icon}</span> {type === 'all' ? text.all : typeLabels[language][type]}</button>)}</div></details>
+        <div className="cards-area"><div className="pokemon-grid" aria-live="polite">{isLoading && pokemon.length === 0 ? <SkeletonCards /> : loadError ? <div className="error-card"><strong>{text.errorTitle}</strong><br /><span>{text.errorText}</span><br /><button type="button" onClick={loadPokemon}>{text.retry}</button></div> : displayed.map((item) => <PokemonCard item={item} language={language} text={text} onDetails={setDetailItem} key={item.id} />)}</div>{!isLoading && !loadError && displayed.length === 0 && <div className="empty-state"><span>⌕</span><h3>{text.emptyTitle}</h3><p>{text.emptyText}</p></div>}{!isLoading && !loadError && pageCount > 1 && <nav className="pagination" aria-label={text.page}><button type="button" onClick={() => setPage((current) => current - 1)} disabled={page === 0}>← {text.previous}</button><span>{text.page} {page + 1} / {pageCount}</span><button type="button" onClick={() => setPage((current) => current + 1)} disabled={page >= pageCount - 1}>{text.next} →</button></nav>}</div>
       </div>
     </section>
     {detailItem && <DetailDialog item={detailItem} language={language} text={text} dialogRef={dialogRef} onClose={closeDetail} />}
