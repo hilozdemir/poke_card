@@ -10,9 +10,23 @@ const uiText = {
   en: { card: 'cards', loading: 'loading', height: 'Height', weight: 'Weight', experience: 'Experience', listen: 'Listen to Cry', playing: 'Playing…', descriptionLoading: 'Loading Pokédex description…', details: 'open details', archive: 'LIVE ARCHIVE', collection: 'PokéCards', search: 'Search Pokémon...', filters: 'TYPE FILTERS', refresh: 'Refresh', all: 'All', apiLive: 'PokeAPI live', emptyTitle: 'No cards match your search', emptyText: 'Try a different Pokémon name or type.', errorTitle: 'PokéAPI is unavailable right now.', errorText: 'Check your connection and try again.', retry: 'Try again' },
 };
 const filterTypes = [['all', '✦'], ['fire', '🔥'], ['water', '💧'], ['grass', '🌿'], ['electric', '⚡'], ['ice', '❄️'], ['fighting', '🥊'], ['poison', '☠️'], ['ground', '🌍'], ['flying', '🪽'], ['psychic', '🔮'], ['bug', '🐛'], ['rock', '🪨'], ['ghost', '👻'], ['dragon', '🐉'], ['dark', '🌑'], ['steel', '⚙️'], ['fairy', '🧚'], ['normal', '⚪']];
-const formatId = (id) => `#${String(id).padStart(3, '0')}`;
+const formatId = (id) => `#${String(id).padStart(4, '0')}`;
 const displayName = (name) => name.replace(/\b\w/g, (letter) => letter.toLocaleUpperCase('tr-TR'));
-const getArtwork = (item) => item.sprites.other?.['official-artwork']?.front_default || item.sprites.front_default;
+const getArtworkSources = (item) => [
+  item.sprites.other?.['official-artwork']?.front_default,
+  item.sprites.other?.home?.front_default,
+  item.sprites.other?.dream_world?.front_default,
+  item.sprites.front_default,
+].filter(Boolean);
+
+function ArtworkImage({ item, alt, className, loading }) {
+  const sources = getArtworkSources(item);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const source = sources[sourceIndex];
+
+  if (!source) return <span className="artwork-fallback" role="img" aria-label={`${alt} görseli bulunamadı`}>?</span>;
+  return <img className={className} loading={loading} src={source} alt={alt} onError={() => setSourceIndex((index) => index + 1)} />;
+}
 
 function PokemonCard({ item, language, text, onDetails }) {
   const [flipped, setFlipped] = useState(false);
@@ -25,7 +39,7 @@ function PokemonCard({ item, language, text, onDetails }) {
         <span className="card-number">{formatId(item.id)}</span>
         <div className="type-pills">{item.types.map(({ type }) => <span className="type" key={type.name}>{typeName(type.name)}</span>)}</div>
         <button className="flip-button" type="button" onClick={() => setFlipped(true)} aria-label={`${name} kartını çevir`} aria-pressed={flipped}>↻</button>
-        <div className="pokemon-art"><img loading="lazy" src={getArtwork(item)} alt={name} /></div>
+        <div className="pokemon-art"><ArtworkImage item={item} loading="lazy" alt={name} /></div>
         <footer className="card-footer"><div><h3 className={`pokemon-name pokemon-name--${primaryType}`}>{name}</h3><p>{item.height / 10} m · {item.weight / 10} kg</p></div><button className="details-button" type="button" onClick={() => onDetails(item)} aria-label={`${name} ${text.details}`}>+</button></footer>
       </div>
       <div className={`card-face card-face-back card-back--${primaryType}`}><span className="back-pokeball" aria-hidden="true"><i /></span><button className="flip-button flip-back-button" type="button" onClick={() => setFlipped(false)} aria-label={`${name} kartının ön yüzüne dön`} aria-pressed={flipped}>↺</button></div>
@@ -53,9 +67,13 @@ function DetailDialog({ item, language, text, dialogRef, onClose }) {
         if (!entry) return;
         if (language !== 'tr') { setDescription(entry); return; }
         try {
-          const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(entry)}`, { signal: controller.signal });
-          const data = await response.json();
-          setDescription(data[0].map((part) => part[0]).join(''));
+          const sentences = entry.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [entry];
+          const translations = await Promise.all(sentences.map(async (sentence) => {
+            const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(sentence.trim())}`, { signal: controller.signal });
+            const data = await response.json();
+            return data[0]?.map((part) => part[0]).join('') || sentence;
+          }));
+          setDescription(translations.join(' ').replace(/\s+/g, ' ').trim());
         } catch (error) { if (error.name !== 'AbortError') setDescription(entry); }
       }).catch(() => {});
     return () => controller.abort();
@@ -88,7 +106,7 @@ function DetailDialog({ item, language, text, dialogRef, onClose }) {
     <button className="close-button" type="button" onClick={onClose} aria-label="Detayları kapat">×</button>
     <article className={`detail-card detail-card--${primaryType}`}>
       <header className="detail-card-header"><span>{formatId(item.id)}</span><div className="detail-types">{item.types.map(({ type }) => <span className="detail-type" key={type.name}>{(typeLabels[language][type.name] || type.name).toLocaleUpperCase(language === 'tr' ? 'tr-TR' : 'en-US')}</span>)}</div></header>
-      <h2>{name}</h2><div className="detail-art"><img src={getArtwork(item)} alt={name} /></div>
+      <h2>{name}</h2><div className="detail-art"><ArtworkImage item={item} alt={name} /></div>
       <section className="detail-info"><p className="detail-description">{description}</p><div className="stats"><div className="stat"><strong>{item.height / 10} m</strong><span>{text.height}</span></div><div className="stat"><strong>{item.weight / 10} kg</strong><span>{text.weight}</span></div><div className="stat"><strong>{item.base_experience || '—'}</strong><span>{text.experience}</span></div></div><button className={`sound-button${isPlaying ? ' playing' : ''}`} type="button" onClick={playCry}><span>{isPlaying ? '◼' : '◖'}</span>{isPlaying ? text.playing : text.listen}</button></section>
     </article>
   </dialog>;
@@ -116,9 +134,11 @@ export default function App() {
     try {
       const response = await fetch(`${API_ROOT}/pokemon?limit=2000&offset=0`);
       if (!response.ok) throw new Error('Pokemon list request failed');
-      const data = await response.json(); setTotalPokemon(data.count);
-      for (let start = 0; start < data.results.length; start += 48) {
-        const results = await Promise.allSettled(data.results.slice(start, start + 48).map(async ({ url }) => {
+      const data = await response.json();
+      const resultsList = data.results;
+      setTotalPokemon(resultsList.length);
+      for (let start = 0; start < resultsList.length; start += 48) {
+        const results = await Promise.allSettled(resultsList.slice(start, start + 48).map(async ({ url }) => {
           const itemResponse = await fetch(url); if (!itemResponse.ok) throw new Error('Pokemon request failed'); return itemResponse.json();
         }));
         if (requestId !== requestRef.current) return;
